@@ -1,0 +1,8 @@
+{
+  "name": "CampusPulse",
+  "description": "Student wellbeing monitoring and behavioral anomaly detection platform with objective academic telemetry (classes attended, assignments submitted), survey masking discrepancy flagging, and clinical intervention triage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
