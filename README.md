@@ -1,1 +1,1 @@
-Campus companion
+Campus companion is generally refers to a digital platform, mobile app, or AI assistant designed to centralized and simply college life for students. depending on the context, it typically serves one of three main purposes.
