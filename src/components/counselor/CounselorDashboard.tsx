@@ -121,10 +121,10 @@ export const CounselorDashboard: React.FC<CounselorDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="dashboard-page space-y-6 pb-16">
       
       {/* Counselor Profile Header - Geometric Balance Panel */}
-      <div className="bg-[#0f172a] border border-slate-800 p-6 sm:p-7 text-white relative">
+      <div className="hero-panel bg-[#0f172a] border border-slate-800 p-6 sm:p-7 text-white relative">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start sm:items-center space-x-4">
             <div className="h-14 w-14 bg-indigo-950 border border-indigo-500/40 flex items-center justify-center text-indigo-300 shrink-0">
@@ -273,7 +273,7 @@ export const CounselorDashboard: React.FC<CounselorDashboardProps> = ({
             <div 
               key={student.id}
               onClick={() => setSelectedStudentForDetail(student)}
-              className="bg-white border border-rose-300 hover:border-rose-500 p-3.5 flex flex-col justify-between space-y-2 cursor-pointer transition-all group"
+              className="interactive-card bg-white border border-rose-300 hover:border-rose-500 p-3.5 flex flex-col justify-between space-y-2 cursor-pointer transition-all group"
             >
               <div>
                 <div className="flex items-center justify-between">

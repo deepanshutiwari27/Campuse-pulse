@@ -9,10 +9,11 @@ import {
   CheckCircle2, 
   Sparkles,
   ArrowRight,
-  Database
+  Database,
+  Chrome
 } from 'lucide-react';
 import { SupabaseAuth, isSupabaseLive } from '../lib/supabase';
-import { UserProfile, UserRole } from '../types';
+import { UserProfile } from '../types';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -31,7 +32,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState<UserRole>('student');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
     setErrorMsg(null);
 
-    const result = await SupabaseAuth.signUp(email, password, role, name);
+    const result = await SupabaseAuth.signUp(email, password, 'student', name);
     setLoading(false);
 
     if (result.success && result.user) {
@@ -94,6 +94,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onSuccess(user);
       onClose();
     }, 400);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    const result = await SupabaseAuth.signInWithGoogle();
+    if (!result.success) {
+      setLoading(false);
+      setErrorMsg(result.error || 'Unable to start Google sign-in.');
+    }
   };
 
   return (
@@ -194,7 +204,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* TAB 1: SIGN IN */}
           {tab === 'signin' && (
-            <form onSubmit={handleSignIn} className="space-y-3.5">
+            <div className="space-y-3.5">
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={!isLive || loading}
+                title={!isLive ? 'Configure Supabase before enabling Google sign-in' : undefined}
+                className="w-full py-2.5 bg-white hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 text-slate-800 font-semibold text-xs border border-slate-300 transition-colors flex items-center justify-center space-x-2"
+              >
+                <Chrome className="h-3.5 w-3.5 text-rose-600" />
+                <span>{loading ? 'Connecting to Google...' : 'Continue with Google'}</span>
+              </button>
+
+              {!isLive && (
+                <p className="text-[10px] text-slate-500 text-center font-mono">
+                  Available after Supabase project credentials are configured.
+                </p>
+              )}
+
+              <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span>or email</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+
+              <form onSubmit={handleSignIn} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
                   Campus Email Address
@@ -220,11 +254,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-indigo-600 focus:bg-white"
                 />
-                {!isLive && (
-                  <span className="text-[10px] font-mono text-slate-400 mt-0.5 block">
-                    * In sandbox mode without live keys, password check is bypassed.
-                  </span>
-                )}
               </div>
 
               <button
@@ -241,7 +270,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </>
                 )}
               </button>
-            </form>
+              </form>
+            </div>
           )}
 
           {/* TAB 2: SIGN UP */}
@@ -289,20 +319,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-mono font-bold uppercase text-slate-700 mb-1">
-                  Campus Account Role
-                </label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-indigo-600 focus:bg-white font-mono"
-                >
-                  <option value="student">Student (Wellbeing telemetry &amp; Check-ins)</option>
-                  <option value="counsellor">Counselor (Clinical Risk Triage &amp; Anomaly Detection)</option>
-                  <option value="peer_supporter">Peer Supporter (Workload &amp; Adjustment Chat)</option>
-                </select>
-              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                New registrations create student accounts. Privileged roles are assigned by a campus administrator.
+              </p>
 
               <button
                 type="submit"

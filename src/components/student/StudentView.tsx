@@ -80,10 +80,10 @@ export const StudentView: React.FC<StudentViewProps> = ({
   ];
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="dashboard-page space-y-6 pb-16">
       
       {/* Hero Greeting & Quick Check-in CTA - Geometric Balance Panel */}
-      <div className="bg-[#0f172a] border border-slate-800 p-6 sm:p-7 text-white relative">
+      <div className="hero-panel bg-[#0f172a] border border-slate-800 p-6 sm:p-7 text-white relative">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start sm:items-center space-x-4">
             <img
@@ -118,7 +118,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
             <button
               id="btn-open-checkin"
               onClick={() => setIsCheckinOpen(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs border border-indigo-500 transition-colors flex items-center space-x-1.5"
+              className="primary-action px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs border border-indigo-500 transition-colors flex items-center space-x-1.5"
             >
               <Sparkles className="h-3.5 w-3.5" />
               <span>Take 60-Sec Check-in</span>
@@ -160,7 +160,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           
           {/* Mood Card */}
-          <div className="bg-slate-50 p-3.5 border border-slate-200 relative">
+          <div className="interactive-card bg-slate-50 p-3.5 border border-slate-200 relative">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Mood</span>
               <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 bg-rose-100 text-rose-800 border border-rose-300">
@@ -184,7 +184,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
           </div>
 
           {/* Sleep Card */}
-          <div className="bg-slate-50 p-3.5 border border-slate-200 relative">
+          <div className="interactive-card bg-slate-50 p-3.5 border border-slate-200 relative">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Sleep Duration</span>
               <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 bg-rose-100 text-rose-800 border border-rose-300">
@@ -207,7 +207,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
           </div>
 
           {/* Academic Pressure Card */}
-          <div className="bg-slate-50 p-3.5 border border-slate-200 relative">
+          <div className="interactive-card bg-slate-50 p-3.5 border border-slate-200 relative">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Academic Pressure</span>
               <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 bg-rose-100 text-rose-800 border border-rose-300">
@@ -230,7 +230,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
           </div>
 
           {/* Social Connection Card */}
-          <div className="bg-slate-50 p-3.5 border border-slate-200 relative">
+          <div className="interactive-card bg-slate-50 p-3.5 border border-slate-200 relative">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Social Connection</span>
               <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 bg-amber-100 text-amber-800 border border-amber-300">

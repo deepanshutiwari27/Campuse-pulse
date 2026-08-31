@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Check, Copy, Key, Server, ShieldCheck, X } from 'lucide-react';
+import { Database, Check, Copy, Key, Server, ShieldCheck, X, Chrome } from 'lucide-react';
 import { isSupabaseLive } from '../lib/supabase';
 
 interface SupabaseConfigModalProps {
@@ -9,7 +9,7 @@ interface SupabaseConfigModalProps {
 
 export const SupabaseConfigModal: React.FC<SupabaseConfigModalProps> = ({ isOpen, onClose }) => {
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'schema' | 'keys'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'schema' | 'keys' | 'google'>('overview');
   const isLive = isSupabaseLive();
 
   if (!isOpen) return null;
@@ -34,6 +34,26 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   anonymous_id TEXT UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Automatically provision a student profile for email and Google OAuth users.
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, email, role, avatar, anonymous_id)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.raw_user_meta_data ->> 'name', split_part(COALESCE(NEW.email, ''), '@', 1), 'Campus member'),
+    COALESCE(NEW.email, ''),
+    'student',
+    NEW.raw_user_meta_data ->> 'avatar_url',
+    'Student #' || upper(substr(replace(NEW.id::text, '-', ''), 1, 6))
+  ) ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_auth_user();
 
 -- 2. STUDENT WELLBEING CHECK-INS
 CREATE TABLE IF NOT EXISTS public.checkins (
@@ -176,6 +196,17 @@ CREATE TABLE IF NOT EXISTS public.peer_profiles (
           >
             Configuration & Keys
           </button>
+          <button
+            onClick={() => setActiveTab('google')}
+            className={`py-3 px-4 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'google'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Chrome className="h-3.5 w-3.5" />
+            Google Auth
+          </button>
         </div>
 
         {/* Content */}
@@ -267,6 +298,27 @@ CREATE TABLE IF NOT EXISTS public.peer_profiles (
                   {sqlSchema}
                 </pre>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'google' && (
+            <div className="space-y-4">
+              <div className={`p-4 border text-xs ${isLive ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                <div className="font-semibold flex items-center gap-2">
+                  <Chrome className="h-4 w-4" />
+                  {isLive ? 'Google OAuth is ready to test' : 'Supabase project credentials are still required'}
+                </div>
+                <p className="mt-1.5 text-slate-600 leading-relaxed">
+                  The app-side Google redirect and callback handling are installed. Provider activation is a protected Supabase dashboard setting, so it cannot be checked or changed until this project is connected.
+                </p>
+              </div>
+              <ol className="list-decimal list-inside text-xs text-slate-700 space-y-2 leading-relaxed">
+                <li>Add <code className="bg-slate-100 px-1">VITE_SUPABASE_URL</code> and <code className="bg-slate-100 px-1">VITE_SUPABASE_ANON_KEY</code> to the deployment environment.</li>
+                <li>In Google Cloud Console, create an OAuth 2.0 Web Client and add the Supabase callback URL shown in Supabase Authentication → Providers → Google.</li>
+                <li>In Supabase Authentication → Providers → Google, enable Google and save that client ID and secret.</li>
+                <li>In Supabase Authentication → URL Configuration, add each deployed app URL and local development URL as redirect URLs.</li>
+                <li>Run the current <code className="bg-slate-100 px-1">src/lib/supabase-schema.sql</code> in the Supabase SQL editor to create OAuth user profiles automatically.</li>
+              </ol>
             </div>
           )}
 

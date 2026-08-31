@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('student', 'counsellor', 'peer_supporter')),
+  role TEXT NOT NULL CHECK (role IN ('student', 'counsellor', 'peer_supporter', 'admin')),
   year TEXT,
   course TEXT,
   avatar TEXT,
@@ -20,6 +20,34 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Create a least-privilege student profile whenever an OAuth provider (such as
+-- Google) creates a user. Counselor and peer roles must be assigned by a
+-- trusted administrator after signup; they are never accepted from OAuth data.
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, email, role, avatar, anonymous_id)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.raw_user_meta_data ->> 'name', split_part(COALESCE(NEW.email, ''), '@', 1), 'Campus member'),
+    COALESCE(NEW.email, ''),
+    'student',
+    NEW.raw_user_meta_data ->> 'avatar_url',
+    'Student #' || upper(substr(replace(NEW.id::text, '-', ''), 1, 6))
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_auth_user();
 
 -- 2. STUDENT WELLBEING CHECK-INS TABLE
 CREATE TABLE IF NOT EXISTS public.checkins (
@@ -108,22 +136,36 @@ ALTER TABLE public.support_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.peer_profiles ENABLE ROW LEVEL SECURITY;
 
 -- POLICIES:
--- 1. Students can view and insert their own checkins
+-- This helper keeps privileged access decisions on the database rather than in
+-- the browser route. It must only ever read the authenticated user's profile.
+CREATE OR REPLACE FUNCTION public.is_care_team()
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('counsellor', 'admin')
+  );
+$$;
+
+-- 1. Students can manage only their own check-ins; care team members can read them.
 CREATE POLICY "Students can access their own checkins" 
   ON public.checkins FOR ALL 
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = user_id OR public.is_care_team())
+  WITH CHECK (auth.uid() = user_id);
 
 -- 2. Counselors can view student checkins and behavior logs
 CREATE POLICY "Counselors can view all logs" 
   ON public.student_behavior_logs FOR SELECT 
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'counsellor'));
+  USING (public.is_care_team());
 
 -- 3. Counselors can manage notes
 CREATE POLICY "Counselors can manage notes" 
   ON public.counselor_notes FOR ALL 
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'counsellor'));
+  USING (public.is_care_team())
+  WITH CHECK (public.is_care_team());
 
 -- 4. Public profiles readable by authenticated users
-CREATE POLICY "Profiles readable by members" 
-  ON public.profiles FOR SELECT 
-  TO authenticated USING (true);
+CREATE POLICY "Members can read permitted profiles"
+  ON public.profiles FOR SELECT TO authenticated
+  USING (id = auth.uid() OR public.is_care_team());

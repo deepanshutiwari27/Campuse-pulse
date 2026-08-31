@@ -123,7 +123,49 @@ export interface AuthState {
   isLiveSupabase: boolean;
 }
 
+const mapSupabaseUser = async (user: User): Promise<UserProfile> => {
+  let profile: Record<string, unknown> | null = null;
+
+  if (activeSupabaseClient) {
+    const { data } = await activeSupabaseClient
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+    profile = data;
+  }
+
+  const metadata = user.user_metadata || {};
+  const email = user.email || '';
+  return {
+    id: user.id,
+    name: String(profile?.name || metadata.full_name || metadata.name || email.split('@')[0] || 'Campus member'),
+    email: String(profile?.email || email),
+    role: (profile?.role || 'student') as UserRole,
+    year: String(profile?.year || '1st Year'),
+    course: String(profile?.course || 'General Studies'),
+    avatar: String(profile?.avatar || metadata.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'),
+    anonymousId: String(profile?.anonymous_id || `Student #${user.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`),
+    googleId: user.app_metadata?.provider === 'google' ? user.id : undefined,
+    isGoogleAccount: user.app_metadata?.provider === 'google',
+  };
+};
+
 export const SupabaseAuth = {
+  // Restore an existing Supabase session, including one returned from Google OAuth.
+  async getAuthenticatedUser(): Promise<UserProfile | null> {
+    if (!activeSupabaseClient) {
+      const sessionUserId = localStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
+      if (!sessionUserId) return null;
+      return this.getAllUsers().find((user) => user.id === sessionUserId) || null;
+    }
+    const { data: { user } } = await activeSupabaseClient.auth.getUser();
+    if (!user) return null;
+    const mappedUser = await mapSupabaseUser(user);
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, mappedUser.id);
+    return mappedUser;
+  },
+
   // Get current active user profile
   getCurrentUser(): UserProfile {
     const rawUsers = localStorage.getItem(STORAGE_KEYS.AUTH_USERS);
@@ -170,22 +212,7 @@ export const SupabaseAuth = {
         }
         if (data.user) {
           // Fetch or map profile from Supabase
-          const { data: profile } = await activeSupabaseClient
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-          const mappedUser: UserProfile = {
-            id: data.user.id,
-            name: profile?.name || data.user.user_metadata?.name || email.split('@')[0],
-            email: data.user.email || email,
-            role: (profile?.role || data.user.user_metadata?.role || 'student') as UserRole,
-            year: profile?.year || '1st Year',
-            course: profile?.course || 'General Studies',
-            avatar: profile?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-            anonymousId: profile?.anonymous_id || `Student #${Math.floor(100 + Math.random() * 900)}`,
-          };
+          const mappedUser = await mapSupabaseUser(data.user);
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, mappedUser.id);
           notifyListeners();
           return { success: true, user: mappedUser };
@@ -199,31 +226,37 @@ export const SupabaseAuth = {
     const users = this.getAllUsers();
     const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (found) {
+      if (!password || found.password !== password) {
+        return { success: false, user: null, error: 'Incorrect email or password.' };
+      }
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, found.id);
+      localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, found.id);
       notifyListeners();
       return { success: true, user: found };
     }
+    return { success: false, user: null, error: 'No CampusPulse account was found for this email.' };
+  },
 
-    // Auto-create test sandbox user if email not registered yet
-    const newDemoUser: UserProfile = {
-      id: 'usr_' + Date.now(),
-      name: email.split('@')[0].replace(/[\._-]/g, ' '),
-      email,
-      role: email.includes('counselor') ? 'counsellor' : email.includes('peer') ? 'peer_supporter' : 'student',
-      year: '1st Year',
-      course: 'Undergraduate Studies',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      anonymousId: `Student #${Math.floor(100 + Math.random() * 900)}`,
-    };
-    const updatedUsers = [...users, newDemoUser];
-    localStorage.setItem(STORAGE_KEYS.AUTH_USERS, JSON.stringify(updatedUsers));
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, newDemoUser.id);
-    notifyListeners();
-    return { success: true, user: newDemoUser };
+  // Redirect to Google's consent screen. Google must be enabled in the Supabase
+  // dashboard before this call can succeed.
+  async signInWithGoogle(): Promise<{ success: boolean; error?: string }> {
+    if (!activeSupabaseClient) {
+      return { success: false, error: 'Supabase is not configured. Add the project URL and anon key before using Google sign-in.' };
+    }
+
+    const { error } = await activeSupabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}${window.location.pathname}`,
+      },
+    });
+
+    return error ? { success: false, error: error.message } : { success: true };
   },
 
   // Supabase Sign Up
   async signUp(email: string, password: string, role: UserRole = 'student', name: string = ''): Promise<{ success: boolean; user: UserProfile | null; error?: string }> {
+    const assignedRole: UserRole = 'student';
     if (activeSupabaseClient) {
       try {
         const { data, error } = await activeSupabaseClient.auth.signUp({
@@ -232,7 +265,7 @@ export const SupabaseAuth = {
           options: {
             data: {
               name: name || email.split('@')[0],
-              role,
+              role: assignedRole,
             }
           }
         });
@@ -244,13 +277,14 @@ export const SupabaseAuth = {
             id: data.user.id,
             name: name || email.split('@')[0],
             email,
-            role,
+            role: assignedRole,
             year: '1st Year',
             course: 'Computer Science',
             avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
             anonymousId: `Student #${Math.floor(100 + Math.random() * 900)}`,
           };
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, newUser.id);
+          localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, newUser.id);
           notifyListeners();
           return { success: true, user: newUser };
         }
@@ -265,16 +299,17 @@ export const SupabaseAuth = {
       id: 'usr_' + Date.now(),
       name: name || email.split('@')[0].replace(/[\._-]/g, ' '),
       email,
-      role,
+      role: assignedRole,
       year: '1st Year',
       course: 'Academic Studies',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
       anonymousId: `Student #${Math.floor(100 + Math.random() * 900)}`,
-      peerSupportEnabled: role === 'peer_supporter',
+      peerSupportEnabled: false,
     };
     const updatedUsers = [...users, newUser];
     localStorage.setItem(STORAGE_KEYS.AUTH_USERS, JSON.stringify(updatedUsers));
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, newUser.id);
+    localStorage.setItem(STORAGE_KEYS.AUTH_SESSION, newUser.id);
     notifyListeners();
     return { success: true, user: newUser };
   },
@@ -288,8 +323,8 @@ export const SupabaseAuth = {
         console.warn('Supabase signOut error:', e);
       }
     }
-    // Default back to Alex Rivera
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, 'usr_student_alex');
+    localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     notifyListeners();
   }
 };

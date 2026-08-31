@@ -62,11 +62,11 @@ export const PeerSupportView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="dashboard-page space-y-6 pb-12">
       
       {/* Header Banner - Geometric Balance Panel */}
-      <div className="bg-[#0f172a] border border-slate-800 p-6 sm:p-7 text-white">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="hero-panel bg-[#0f172a] border border-slate-800 p-6 sm:p-7 text-white relative">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight font-heading">Anonymous Peer Support</h2>
